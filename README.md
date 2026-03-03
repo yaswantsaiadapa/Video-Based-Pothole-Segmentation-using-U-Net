@@ -137,10 +137,11 @@ This requires Python 3.8 or higher. A GPU is optional but recommended for faster
 
 ## Running the Project
 
-1. Install dependencies using pip install -r requirements.txt
+1. Install dependencies using `pip install -r requirements.txt`
 
 2. Prepare your dataset in this structure:
 
+```
 pothole_dataset/
   pothole_video/
     train/
@@ -152,20 +153,21 @@ pothole_dataset/
     test/
       rgb/
       mask/
+```
 
-3. Open the notebook and run cells in order
+3. Open the notebook and run the cells in sequence. The phases are:
 
-   Phase 1: Frame extraction from videos
-   Phase 2: Dataset creation and loading
-   Phase 3: Model training
-   Phase 4: Model evaluation
-   Phase 5-6: Video inference (baseline)
-   Phase 7: Temporal smoothing
-   Phase 8: Persistence-based filtering
-   Phase 9: Severity estimation
-   Phase 10: Final evaluation
+- Phase 1: Frame extraction from videos
+- Phase 2: Dataset creation and loading
+- Phase 3: Model training
+- Phase 4: Model evaluation
+- Phase 5-6: Video inference (baseline)
+- Phase 7: Temporal smoothing
+- Phase 8: Persistence-based filtering
+- Phase 9: Severity estimation
+- Phase 10: Final evaluation
 
-4. Output videos and metrics are generated automatically
+4. Output videos and metrics are generated automatically.
 
 ## Project Contents
 
