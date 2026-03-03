@@ -1,465 +1,191 @@
-# 🚧 Video-Based Pothole Segmentation using U-Net
+# Video-Based Pothole Segmentation using U-Net
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-red.svg)](https://pytorch.org/)
-[![OpenCV](https://img.shields.io/badge/OpenCV-4.8+-green.svg)](https://opencv.org/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+## Overview
 
----
+This project detects and segments potholes from road videos using a U-Net deep learning model. The system processes video frames to identify pothole locations, applies temporal processing to remove false detections, and estimates severity levels.
 
-## 📌 Overview
+## What This Project Does
 
-This project implements a **complete deep learning pipeline** for pothole detection and segmentation from road surveillance videos. It demonstrates a production-ready workflow combining computer vision, neural networks, and temporal video processing.
+- Segments potholes at pixel level in video frames
+- Reduces flickering by averaging predictions across frames
+- Filters false positives by requiring consistent detections
+- Estimates pothole severity for each video
+- Evaluates results using standard metrics (Dice and IoU)  
 
-### Key Capabilities
+## Problem
 
-✅ **Frame-wise Segmentation** - Pixel-level pothole detection using U-Net  
-✅ **Temporal Smoothing** - Reduces flickering between consecutive frames  
-✅ **Persistence Logic** - Confirms detections only in stable regions  
-✅ **Severity Estimation** - Quantifies pothole severity at video level  
-✅ **Robust Evaluation** - Dice (0.649) and IoU (0.535) metrics on test set  
+Potholes are a major issue for road infrastructure. Manual inspection is slow and inconsistent. We need an automated system that can:
 
----
+- Detect potholes in road videos automatically
+- Create pixel-level segmentation masks
+- Reduce false alarms using temporal information
+- Estimate the severity of damage for maintenance prioritization
 
-## 🎯 Problem Statement
+## How It Works
 
-Road potholes are a critical infrastructure challenge:
-- **Safety Risk**: Vehicle damage, accidents, traffic disruptions
-- **Maintenance Challenge**: Manual inspection is time-consuming and inconsistent
-- **Scale Issue**: Thousands of kilometers of roads require monitoring
+### Dataset Preparation
 
-### Solution Approach
+The dataset consists of synchronized RGB videos and mask videos. 
 
-Build an **automated vision system** that:
-1. Detects potholes in video frames with high accuracy
-2. Produces pixel-wise segmentation masks
-3. Filters false positives using temporal consistency
-4. Estimates damage severity for priority-based repairs
+Process:
+- Extract frames from videos (every 3rd frame)
+- Split into train, validation, and test sets
+- Convert mask videos to binary images
+- Organize by split and data type
 
----
+### Preprocessing
 
-## 🧠 Methodology
+Images are processed as follows:
 
-### 1️⃣ Dataset Preparation
+- Resize to 256x256 pixels
+- Normalize pixel values between 0 and 1
+- Convert masks to binary format (0 or 1)
 
-**Source**: Pothole video dataset with synchronized RGB and mask videos
+During training, additional augmentations are applied:
 
-**Processing Pipeline**:
-```
-Raw Videos (RGB + Masks)
-        ↓
-Frame Extraction (FRAME_SKIP = 3)
-        ↓
-Train / Val / Test Split
-        ↓
-Binary Mask Conversion
-        ↓
-Augmented Training Set
-```
+- Horizontal flips (50% of the time)
+- Rotation between -10 to +10 degrees
+- Brightness adjustment between 0.8x and 1.2x
 
-**Dataset Structure**:
-```
-extracted_frames/
-├── train/     (RGB images + binary masks)
-├── val/       (validation split)
-└── test/      (evaluation split)
-```
+### Model Architecture
 
-### 2️⃣ Data Preprocessing & Augmentation
+The model uses U-Net, an encoder-decoder architecture designed for segmentation:
 
-**Image Processing**:
-- Resized to **256×256** for model input
-- Normalized to **[0, 1]** range
-- Masks converted to **binary format** (0/1)
+Input -> Encoder (4 levels) -> Bottleneck -> Decoder (4 levels) -> Output
 
-**Training Augmentations** (applied on-the-fly):
-```python
-✓ Horizontal Flip (50% probability)
-✓ Random Rotation (±10°)
-✓ Brightness Adjustment (0.8x - 1.2x)
-```
+The encoder progressively downsamples the image while extracting features. The bottleneck captures the most important information. The decoder upsamples back to the original size while combining information from the encoder layers (skip connections). The final output is a single channel with values between 0 and 1, representing the probability of a pothole at each pixel.
 
-### 3️⃣ Model Architecture: U-Net
+![Architecture diagram](images/architecture.png)
 
-Custom U-Net implementation built from scratch in PyTorch with skip connections.
+### Loss Function
 
-![U-Net Architecture](images/architecture.png)
+Two losses are combined during training:
 
-**Architecture Details**:
+1. Binary Cross Entropy - measures pixel-level classification accuracy
+2. Dice Loss - measures overlap between predicted and ground truth masks
 
-| Component | Input Channels | Output Channels | Spatial Size |
-|-----------|---------------|-----------------|--------------|
-| Input     | -             | 3               | 256×256      |
-| Down Block 1 | 3          | 32              | 128×128      |
-| Down Block 2 | 32         | 64              | 64×64        |
-| Down Block 3 | 64         | 128             | 32×32        |
-| Down Block 4 | 128        | 256             | 16×16        |
-| **Bottleneck** | 256      | 512             | 8×8          |
-| Up Block 4 | 512 + skip   | 256             | 16×16        |
-| Up Block 3 | 256 + skip   | 128             | 32×32        |
-| Up Block 2 | 128 + skip   | 64              | 64×64        |
-| Up Block 1 | 64 + skip    | 32              | 128×128      |
-| Output    | 32           | 1 (sigmoid)     | 256×256      |
+Using both helps handle the class imbalance (potholes occupy small regions) and improves convergence.
 
-**Key Features**:
-- DoubleConv blocks (2× Conv2d + ReLU per level)
-- Skip connections reduce information loss
-- Symmetric encoder-decoder structure
-- Sigmoid activation for binary probability output
+### Results
 
-### 4️⃣ Loss Function
+On test frames:
 
-**Combined Loss Strategy**:
-```
-Loss = Binary Cross Entropy + Dice Loss
-```
+Dice Score: 0.6491
+IoU Score: 0.5353
 
-**Why this combination?**
-- **BCE**: Pixel-level classification accuracy
-- **Dice**: Handles class imbalance (potholes are sparse)
-- **Synergy**: Better convergence than either alone
+These scores show that the model correctly identifies pothole regions in individual frames.
 
-```python
-def combined_loss(pred, target):
-    bce = F.binary_cross_entropy(pred, target)
-    dice = dice_loss(pred, target)
-    return bce + dice
-```
+When temporal processing is applied (smoothing + persistence), the scores decrease slightly:
 
----
+Dice Score: 0.5103
+IoU Score: 0.3874
 
-## 📊 Quantitative Results
+This trade-off is intentional. The temporal processing removes false positives and creates stable detections in videos, even though individual frame accuracy decreases.
 
-### Frame-wise Evaluation (Raw Model)
+## Temporal Processing
 
-Model evaluated on test split with single-frame predictions:
-
-| Metric | Score | Interpretation |
-|--------|-------|-----------------|
-| **Dice Coefficient** | 0.6491 | Strong overlap between predicted and ground truth masks |
-| **IoU (Intersection over Union)** | 0.5353 | 53.5% pixel-level accuracy in pothole regions |
-
-### Temporal Video Segmentation (With Persistence)
-
-After applying temporal smoothing and persistence logic:
-
-| Metric | Score | Trade-off |
-|--------|-------|-----------|
-| **Dice** | 0.5103 | ↓ 21% (spatial accuracy) |
-| **IoU** | 0.3874 | ↓ 27% (spatial accuracy) |
-| **Flickering** | Reduced | ✓ Stable detections |
-| **False Positives** | Lower | ✓ Fewer false alarms |
-
-**Insight**: Trading spatial accuracy for temporal stability produces **production-ready** detections over short video sequences.
-
----
-
-## 🎥 Temporal Processing Pipeline
+The model predictions are processed in three stages to improve reliability in videos.
 
 ### Stage 1: Temporal Smoothing
 
-**Problem**: Single-frame predictions flicker across frames  
-**Solution**: Average predictions over N consecutive frames
-
-```python
-N = 5  # Smoothing window size
-
-# Maintain deque of last N probability maps
-for frame in video:
-    prob_map = model(frame)  # Raw model output [0, 1]
-    prob_buffer.append(prob_map)
-    
-    smoothed = np.mean(prob_buffer, axis=0)  # Average
-    mask = (smoothed > 0.5).astype(uint8)    # Threshold
-```
-
-**Effect**: Reduces noise while preserving genuine pothole regions
+Individual frame predictions can flicker between consecutive frames. To reduce this noise, predictions are averaged over the last 5 frames. This creates smoother detections while still preserving genuine potholes.
 
 ### Stage 2: Persistence Logic
 
-**Problem**: Isolated detections may be false positives  
-**Solution**: Confirm detection only if present in K consecutive frames
+Even after smoothing, some false detections may appear. The system only confirms a pothole detection if it appears in at least 3 consecutive frames AND covers a minimum area. This eliminates isolated noise while keeping real potholes.
 
-```python
-K = 3  # Require 3 consecutive detections
-AREA_THRESHOLD = 200  # Minimum pixels
+### Stage 3: Severity Estimation
 
-if current_area > AREA_THRESHOLD:
-    consecutive_count += 1
-else:
-    consecutive_count = max(0, consecutive_count - 1)
+For each video, the system calculates:
 
-if consecutive_count >= K:
-    final_mask = valid  # Show detection
-else:
-    final_mask = zeros  # Suppress false positive
-```
+- Number of frames with detected potholes
+- Duration the pothole is visible (seconds)
+- Average size of the detected area
+- Peak size of the detected area
 
-**Results**:
-- ✓ Eliminates single-frame noise
-- ✓ Maintains detection of real potholes
-- ✓ Produces stable video output
+Based on average area coverage, severity is classified as Small (less than 3% of frame), Medium (3-10%), or Large (above 10%).
 
-### Stage 3: Video-Level Severity Estimation
+## Results Summary
 
-For each test video, compute:
+Sample outputs are generated in three formats:
 
-```python
-frames_with_pothole = count of frames with detected potholes
-visible_duration = frames_with_pothole / fps
-mean_area_ratio = average pixel ratio per frame
-max_area_ratio = peak pixel coverage
+Baseline: Raw model predictions frame by frame
+Smoothed: Temporal averaging applied
+Persistent: Full pipeline with persistence filtering
 
-# Classify severity
-if mean_area_ratio < 0.03:
-    severity = "Small"     # Minor surface damage
-elif mean_area_ratio < 0.10:
-    severity = "Medium"    # Moderate pothole
-else:
-    severity = "Large"     # Severe damage
-```
+See the outputs folder for video examples.
+
+![Segmentation example](images/result_sample.png)
 
 ---
 
-## 🖼️ Sample Results
+## Tools and Libraries
 
-### Segmentation Output
+Python 3.8 or higher
+PyTorch 2.0 - Deep learning framework
+OpenCV 4.8 - Video and image processing
+NumPy 1.24 - Numerical operations
+Matplotlib 3.8 - Visualization
 
-![Sample Segmentation Result](images/result_sample.png)
+## Setup
 
-*Left: Original frame | Right: Detected pothole region highlighted in red*
+Install required packages:
 
-### Video Outputs
-
-Three output formats are generated:
-
-| Output | Feature | File |
-|--------|---------|------|
-| **Baseline** | Single-frame predictions | `outputs/output_baseline.mp4` |
-| **Smoothed** | Temporal averaging applied | `outputs/output_smoothed.mp4` |
-| **Persistent** | Full pipeline with persistence | `outputs/output_persistant.mp4` |
-
----
-
-## 🛠️ Technology Stack
-
-| Component | Version | Purpose |
-|-----------|---------|---------|
-| **Python** | 3.8+ | Programming language |
-| **PyTorch** | 2.0+ | Deep learning framework |
-| **OpenCV** | 4.8+ | Video and image processing |
-| **NumPy** | 1.24+ | Numerical computations |
-| **Matplotlib** | 3.8+ | Visualization |
-
----
-
-## 🚀 How to Run
-
-### Step 1: Install Dependencies
-
-```bash
 pip install -r requirements.txt
-```
 
-**Requires**:
-- Python 3.8 or higher
-- CUDA-compatible GPU (optional, defaults to CPU)
+This requires Python 3.8 or higher. A GPU is optional but recommended for faster training.
 
-### Step 2: Prepare Dataset
+## Running the Project
 
-Place your pothole video dataset in the following structure:
+1. Install dependencies using `pip install -r requirements.txt`
+
+2. Prepare your dataset in this structure:
 
 ```
 pothole_dataset/
-└── pothole_video/
-    ├── train/
-    │   ├── rgb/     (RGB video files)
-    │   └── mask/    (Mask video files)
-    ├── val/
-    │   ├── rgb/
-    │   └── mask/
-    └── test/
-        ├── rgb/
-        └── mask/
+  pothole_video/
+    train/
+      rgb/
+      mask/
+    val/
+      rgb/
+      mask/
+    test/
+      rgb/
+      mask/
 ```
 
-### Step 3: Run the Notebook
+3. Open the notebook and run the cells in sequence. The phases are:
 
-```
-1. Open project.ipynb in Jupyter
-2. Execute cells in order:
-   
-   Phase 1: Frame extraction from videos
-   Phase 2: Dataset creation and loading
-   Phase 3: Model training
-   Phase 4: Model evaluation
-   Phase 5-6: Video inference (baseline)
-   Phase 7: Temporal smoothing
-   Phase 8: Persistence-based filtering
-   Phase 9: Severity estimation
-   Phase 10: Final evaluation
-```
+- Phase 1: Frame extraction from videos
+- Phase 2: Dataset creation and loading
+- Phase 3: Model training
+- Phase 4: Model evaluation
+- Phase 5-6: Video inference (baseline)
+- Phase 7: Temporal smoothing
+- Phase 8: Persistence-based filtering
+- Phase 9: Severity estimation
+- Phase 10: Final evaluation
 
-### Step 4: Generate Outputs
+4. Output videos and metrics are generated automatically.
 
-The notebook automatically produces:
-- ✓ Trained model weights
-- ✓ Segmentation evaluation metrics
-- ✓ Output videos with overlaid predictions
-- ✓ Severity reports per video
+## Project Contents
 
----
+README.md - This file
+requirements.txt - Python dependencies
+project.ipynb - Main notebook with all phases
 
-## 📁 Project Structure
+images/
+  architecture.png - U-Net diagram
+  result_sample.png - Example segmentation
 
-```
-project-pothole-segmentation/
-│
-├── 📄 README.md                    # This file
-├── 📄 requirements.txt             # Dependency list
-├── 📓 project.ipynb                # Main notebook (all phases)
-│
-├── 📁 images/
-│   ├── architecture.png            # U-Net architecture diagram
-│   └── result_sample.png           # Example segmentation result
-│
-└── 📁 outputs/
-    ├── output_baseline.mp4         # Raw model predictions
-    ├── output_smoothed.mp4         # Temporal smoothing applied
-    └── output_persistant.mp4       # Full pipeline output
-```
+outputs/
+  output_baseline.mp4 - Raw predictions
+  output_smoothed.mp4 - With temporal smoothing
+  output_persistant.mp4 - Final pipeline output
 
----
+## Author
 
-## 🔍 Key Implementation Details
-
-### Custom Dataset Class
-
-```python
-class PotHoleDataset(Dataset):
-    def __init__(self, rgb_dir, mask_dir, img_size=256, train=False):
-        self.rgb_images = sorted(os.listdir(rgb_dir))
-        self.train = train
-        
-    def __getitem__(self, idx):
-        # Load and preprocess image
-        image = cv2.imread(rgb_path)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        image = cv2.resize(image, (self.img_size, self.img_size))
-        image = torch.tensor(image/255.0, dtype=torch.float32).permute(2,0,1)
-        
-        # Load and preprocess mask
-        mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
-        mask = cv2.resize(mask, (self.img_size, self.img_size))
-        mask = torch.tensor((mask>0).astype("float32")).unsqueeze(0)
-        
-        # Apply augmentations (training only)
-        if self.train:
-            image, mask = self.augment(image, mask)
-        
-        return image, mask
-```
-
-### Training Loop
-
-```python
-def train_one_epoch(model, loader, optimizer):
-    model.train()
-    total_loss = 0
-    
-    for images, masks in loader:
-        images, masks = images.to(device), masks.to(device)
-        
-        # Forward pass
-        preds = model(images)
-        loss = combined_loss(preds, masks)
-        
-        # Backward pass
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        
-        total_loss += loss.item()
-    
-    return total_loss / len(loader)
-```
-
----
-
-## 💡 Design Decisions & Trade-offs
-
-| Decision | Rationale | Trade-off |
-|----------|-----------|-----------|
-| **U-Net from scratch** | Custom control, educational value | Less accurate than pretrained backbones |
-| **256×256 images** | Memory efficient, faster training | Loses fine detail (larger potholes) |
-| **Combined BCE + Dice** | Handles class imbalance well | Increased hyperparameter tuning |
-| **N=5 smoother, K=3 persistence** | Good balance for real-time | Misses small/fast potholes |
-| **Temporal smoothing first** | Stabilizes predictions | Adds ~5 frame latency in video |
-
----
-
-## 🏆 Key Achievements
-
-✅ **Functional End-to-End System**: From video input to severity report  
-✅ **Robust Evaluation**: Comprehensive metrics beyond accuracy  
-✅ **Temporal Intelligence**: Not just frame-wise but video-aware  
-✅ **Production Considerations**: Handles real-world noise and false positives  
-✅ **Interpretability**: Clear visualization of what model detects  
-
----
-
-## 📚 Future Improvements
-
-| Priority | Enhancement | Benefit |
-|----------|-----------|---------|
-| **High** | Pretrained encoder (ResNet-50 backbone) | 15-20% accuracy boost |
-| **High** | Adaptive threshold learning | Better generalization |
-| **Medium** | Attention mechanisms (CBAM) | Focus on relevant features |
-| **Medium** | Use larger dataset | Reduce overfitting |
-| **Low** | Real-time inference optimization | Deploy on edge devices |
-| **Low** | Multi-class segmentation | Pothole severity classification |
-
----
-
-## 📖 Lessons & Takeaways
-
-### Machine Learning
-- Implementing architectures from scratch deepens understanding
-- Loss function design is crucial for task-specific performance
-- Class imbalance requires thoughtful metric selection
-
-### Computer Vision
-- Temporal consistency matters as much as spatial accuracy
-- Simple post-processing (smoothing, persistence) provides huge practical gains
-- Visualization is essential for debugging
-
-### Software Engineering
-- Modular pipeline design enables easy modifications
-- Clear separation: preprocessing → model → post-processing
-- Evaluation metrics guide iteration and improvements
-
----
-
-## 🎓 Author
-
-**Yaswant Sai**  
+Yaswant Sai
 B.Tech CSE | Deep Learning & Computer Vision Enthusiast
-
 ---
-
-## 📝 License
-
-This project is available under the MIT License. See LICENSE file for details.
-
----
-
-## 🤝 Contributing
-
-Suggestions and improvements are welcome! Feel free to:
-- Report issues
-- Propose enhancements
-- Submit pull requests
-
----
-
-**Built with ❤️ for road safety and infrastructure maintenance**
