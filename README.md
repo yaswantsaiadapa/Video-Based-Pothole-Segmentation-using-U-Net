@@ -184,6 +184,8 @@ outputs/
   output_smoothed.mp4 - With temporal smoothing
   output_persistant.mp4 - Final pipeline output
 
+best_unet.pth
+
 ## Author
 
 Yaswant Sai
