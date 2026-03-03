@@ -169,22 +169,21 @@ pothole_dataset/
 
 4. Output videos and metrics are generated automatically.
 
-## Project Contents
+##  Project Contents
 
-README.md - This file
-requirements.txt - Python dependencies
-project.ipynb - Main notebook with all phases
+The repository is organized as follows:
 
-images/
-  architecture.png - U-Net diagram
-  result_sample.png - Example segmentation
-
-outputs/
-  output_baseline.mp4 - Raw predictions
-  output_smoothed.mp4 - With temporal smoothing
-  output_persistant.mp4 - Final pipeline output
-
-best_unet.pth
+* **`project.ipynb`** — The primary Jupyter Notebook containing all project phases: preprocessing, model training, and evaluation.
+* **`best_unet.pth`** — The serialized weights for the trained U-Net model.
+* **`requirements.txt`** — List of Python dependencies required to run the project.
+* **`images/`** — Documentation and visualization assets.
+    * `architecture.png` — Detailed diagram of the U-Net segmentation model.
+    * `result_sample.png` — Visual example of the model's pothole segmentation output.
+* **`outputs/`** — Video results from different stages of the pipeline.
+    * `output_baseline.mp4` — Raw model predictions.
+    * `output_smoothed.mp4` — Predictions with temporal smoothing applied.
+    * `output_persistant.mp4` — Final stabilized pipeline output.
+* **`README.md`** — Project documentation (this file).
 
 ## Author
 
