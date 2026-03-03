@@ -55,6 +55,8 @@ Input -> Encoder (4 levels) -> Bottleneck -> Decoder (4 levels) -> Output
 
 The encoder progressively downsamples the image while extracting features. The bottleneck captures the most important information. The decoder upsamples back to the original size while combining information from the encoder layers (skip connections). The final output is a single channel with values between 0 and 1, representing the probability of a pothole at each pixel.
 
+![Architecture diagram](images/architecture.png)
+
 ### Loss Function
 
 Two losses are combined during training:
@@ -113,6 +115,8 @@ Persistent: Full pipeline with persistence filtering
 
 See the outputs folder for video examples.
 
+![Segmentation example](images/result_sample.png)
+
 ---
 
 ## Tools and Libraries
@@ -138,16 +142,16 @@ This requires Python 3.8 or higher. A GPU is optional but recommended for faster
 2. Prepare your dataset in this structure:
 
 pothole_dataset/
-└── pothole_video/
-    ├── train/
-       │   ├── rgb/
-       │   └── mask/
-    ├── val/
-    │   ├── rgb/
-    │   └── mask/
-    └── test/
-        ├── rgb/
-        └── mask/
+  pothole_video/
+    train/
+      rgb/
+      mask/
+    val/
+      rgb/
+      mask/
+    test/
+      rgb/
+      mask/
 
 3. Open the notebook and run cells in order
 
